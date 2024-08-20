@@ -1,0 +1,62 @@
+const { MongoClient } = require("mongodb");
+require("dotenv").config({ path: ".env.local" });
+const uri = process.env.MONGODB_URL;
+
+const connect = new MongoClient(uri);
+
+const repeatedCustomer = async (timeFrame) => {
+  try {
+    await connect.connect();
+    console.log("Connected to MongoDB");
+    const db = connect.db("RQ_Analytics");
+
+    const startDate = calculateStartDate(timeFrame);
+
+    const aggregateData = await db
+      .collection("shopifyCustomers")
+      .aggregate([
+        {
+          $match: {
+            orders_count: { $gt: 1 },
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            first_name: 1,
+            last_name: 1,
+            email: 1,
+            orders_count: 1,
+            created_at: 1,
+            updated_at: 1,
+          },
+        },
+      ])
+      .toArray();
+
+    console.log("Aggregated Data:", aggregateData);
+
+    // return aggregateData[0] ? aggregateData[0].repeatCustomersCount : 0;
+    return aggregateData;
+  } catch (error) {
+    console.error("Error fetching aggregated data from mongodb:", error);
+  }
+
+  function calculateStartDate(timeFrame) {
+    const now = new Date();
+    switch (timeFrame) {
+      case "daily":
+        return new Date(now.setDate(now.getDate() - 1));
+      case "monthly":
+        return new Date(now.setMonth(now.getMonth() - 1));
+      case "quarterly":
+        return new Date(now.setMonth(now.getMonth() - 3));
+      case "yearly":
+        return new Date(now.setFullYear(now.getFullYear() - 10));
+      default:
+        return new Date(0); // No range, get all data
+    }
+  }
+};
+
+module.exports = repeatedCustomer;
